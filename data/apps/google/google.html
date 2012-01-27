@@ -28,12 +28,92 @@
   <script data-main="google.js" src="../../ui/scripts/requireplugins-jquery.js" charset="utf-8"></script>
     <script>
       require({
-        baseUrl: '../../ui/scripts'
+        baseUrl: '../../ui/scripts',
+        paths: {
+          style: '../../ui/share/style',
+          widgets: '../../ui/share/scripts/widgets'
+        }
       });
     </script>
 </head>
 
 <body>
+  <div id="wrapper" class="wrapper hbox">
+    <!-- the share UI -->
+    <div id="panel">
+    </div>
+  </div>
+
+  <!-- Click blocker for status messages. Should be before status messages but
+       after main content for z-order purposes -->
+  <div id="clickBlock" class="hidden"></div>
+
+  <!-- Start status messages -->
+  <div id="statusSharing" class="status hidden">
+    <table>
+      <tr>
+        <td>
+          <img src="/share/i/loader.gif" /> sharing...
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div id="statusOAuthFailed" class="status hidden error">
+    <table>
+      <tr>
+        <td>
+          Sorry, we couldn't connect to your account. Please try again.
+          <button class="statusButton statusErrorButton">ok</button>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div id="statusError" class="status hidden error">
+    <table>
+      <tr>
+        <td>
+          We're sorry, there was an error sending your share.
+          <span id="statusErrorMessage"></span>
+          <button class="statusButton statusErrorButton">ok</button>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div id="statusToError" class="status hidden error">
+    <table>
+      <tr>
+        <td>
+          The 'to' field is required to send email.
+          <button class="statusButton statusErrorButton">ok</button>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div id="statusAuth" class="status hidden intermediate error">
+    <table>
+      <tr>
+        <td>
+          Sorry, you've been signed out. Sign in again to finish sharing.
+          <button id="authOkButton" class="statusButton">sign in</button>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div id="statusShared" class="status hidden">
+    <table>
+      <tr>
+        <td>
+          Message Shared!
+        </td>
+      </tr>
+    </table>
+  </div>
+  <!-- End status messages -->
 
 <script id="text_message" type="text/x-jquery-tmpl">
 ${message}

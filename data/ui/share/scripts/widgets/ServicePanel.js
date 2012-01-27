@@ -26,10 +26,10 @@
 "use strict";
 
 define([ 'blade/object', 'blade/Widget', 'jquery', 'text!./ServicePanel.html',
-         'mediator',     'module', 'dispatch', 'widgets/AccountPanel',
+         'module', 'dispatch', 'widgets/AccountPanel',
          'require', 'blade/fn', './jigFuncs'],
 function (object,         Widget,         $,        template,
-          mediator,       module,   dispatch,   AccountPanel,
+          module,   dispatch,   AccountPanel,
           require,   fn,         jigFuncs) {
 
   var className = module.id.replace(/\//g, '-');
@@ -84,7 +84,7 @@ function (object,         Widget,         $,        template,
       //The service state has changed, update the relevant HTML bits.
       serviceChanged: function () {
         var self = this;
-        this.owaservice.call("getLogin", {},
+        this.owaservice.getLogin(
           function(result) {
             self.owaservice.user = result.user;
             self.updateServicePanel();
@@ -144,7 +144,7 @@ function (object,         Widget,         $,        template,
         } else {
           thisPanelDiv.hide();
         }
-        mediator.sizeToContent();
+//        mediator.sizeToContent();
         dispatch.pub("servicePanelChanged", this.owaservice.app.origin);
       },
 
@@ -168,7 +168,15 @@ function (object,         Widget,         $,        template,
         // the popup was blocked.
         try {
           var app = this.owaservice.app;
-          navigator.mozActivities.mediation.startLogin(app.origin);
+          var handleAuthResult = function(result) {
+            this.owaservice.authenticationChanged(result, function() {
+              dispatch.pub('serviceChanged', this.owaservice.app.origin);
+            }.bind(this));
+
+          };
+          navigator.mozActivities.services.oauth.login(app.origin,
+                                                       this.owaservice.parameters.auth,
+                                                       handleAuthResult.bind(this));
         } catch (e) {
           dump("ex "+e.toString()+"\n");
         }

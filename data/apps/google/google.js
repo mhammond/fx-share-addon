@@ -26,9 +26,13 @@
   document: false, setTimeout: false, localStorage: false */
 "use strict";
 
-define([ "require", "../common", "jquery", "jquery.tmpl"],
+define([ "require", "../common.js", 'ui', 'widgets/ServicePanel',
+         "jquery", "jquery.tmpl", "jquery-ui-1.8.7.min", "jquery.textOverflow"],
 
-function (require,  common,      $) {
+function (require,  common,          ui, ServicePanel,
+          $) {
+  var servicePanel;
+  var appOrigin = "f1-google.com"; // should either be a real origin or nuked completely!
   var domain = "google.com"
   var parameters = {
       domain: "google.com",
@@ -70,17 +74,6 @@ function (require,  common,      $) {
       tokenRx: "oauth_verifier=([^&]*)"
     }
   };
-
-  // Used to be sure to clear out any localStorage values.
-  // Add to it if any new localStorage items are added.
-  function clearStorage(activity, credentials) {
-    var storage = window.localStorage;
-
-    //This takes care of api.key localStorage
-    common.logout(domain, activity, credentials);
-
-    storage.removeItem(api.key + '.email');
-  }
 
   var api = {
     key: "ff-share-" + domain,
@@ -147,13 +140,14 @@ function (require,  common,      $) {
       return result;
     },
 
-    getProfile: function(activity, credentials) {
-      var oauthConfig = activity.data;
+    getProfile: function(oauthConfig, cb) {
       navigator.mozActivities.services.oauth.call(oauthConfig, {
         method: "GET",
         action: "https://www.google.com/m8/feeds/contacts/default/full",
         parameters: {alt:'json'}
-      },function(json) {
+      },function(response) {
+        // XXX - should check .status and/or .statusText
+        var json = JSON.parse(response.responseText);
         var me = api.profileToPoco(json.feed);
         var user = {
           profile: me,
@@ -166,10 +160,11 @@ function (require,  common,      $) {
         try {
           window.localStorage.removeItem(api.key+'.email');
         } catch(e) {}
-        activity.postResult(user);
 
+        cb(user);
         // handle the first page of contacts now
         api._handleContacts(json.feed, 'email', oauthConfig);
+        return user;
       });
     },
 
@@ -207,12 +202,42 @@ function (require,  common,      $) {
         method: "GET",
         action: url,
         parameters: params
-      },function(json) {
+      },function(response) {
+        // XXX - should check .status and/or .statusText
+        var json = JSON.parse(response.responseText);
         api._handleContacts(json.feed, 'email', oauthConfig);
       });
     },
 
-    send: function(activity, credentials) {
+    getShareTypeRecipients: function(data, callback, errback) {
+      var byEmail = JSON.parse(window.localStorage.getItem(api.key+'.email'));
+      // convert back to a simple array of names to use for auto-complete.
+      var toFormat = [];
+      for (var email in byEmail) {
+        var poco = byEmail[email];
+        toFormat.push([poco.displayName, email])
+      }
+      // Now format the addresses into something we can later parse.
+      navigator.mozActivities.services.formatEmailAddresses.call(toFormat, function(result) {
+        if ('error' in result) {
+          errback(result.error);
+        } else {
+          // result.result is already in the format we need.
+          callback(result.result);
+        }
+      });
+    },
+
+    // Used to be sure to clear out any localStorage values.
+    // Add to it if any new localStorage items are added.
+    clearStorage: function () {
+      var storage = window.localStorage;
+        //This takes care of api.key localStorage
+      common.logout(domain);
+        storage.removeItem(api.key + '.email');
+    },
+
+    send: function(activity, callback, errback) {
       var strval = window.localStorage.getItem(api.key);
       var urec = JSON.parse(strval);
       var oauthConfig = urec.oauth;
@@ -247,20 +272,20 @@ function (require,  common,      $) {
           dump("got gmail send result "+JSON.stringify(json)+"\n");
           if ('error' in json) {
               var message = json.error.message || json.error.reply;
-              activity.postException({code:"error", message:message});
+              errback({code:"error", message:message});
           } else {
-              activity.postResult(json)
+              callback(json)
           }
         });
     },
 
-    resolveRecipients: function(activity, credentials) {
-      navigator.mozActivities.services.resolveEmailAddresses.call(activity.data.names, function(result) {
+    resolveRecipients: function(data, callback, errback) {
+      navigator.mozActivities.services.resolveEmailAddresses.call(data.names, function(result) {
         if ('error' in result) {
-          activity.postException(result.error);
+          errback(result.error);
         } else {
           // result.result is already in the format we need.
-          activity.postResult(result.result);
+          callback(result.result);
         }
       });
     }
@@ -268,59 +293,59 @@ function (require,  common,      $) {
 
   // Bind the OWA messages
   navigator.mozActivities.services.registerHandler('link.send', 'confirm', function(activity, credentials) {
-    api.send(activity, credentials);
-  });
-
-  navigator.mozActivities.services.registerHandler('link.send', 'getLogin', function(activity, credentials) {
-    common.getLogin(domain, activity, credentials);
-  });
-
-  navigator.mozActivities.services.registerHandler('link.send', 'setAuthorization', function(activity, credentials) {
-    api.getProfile(activity, credentials);
-  });
-
-  navigator.mozActivities.services.registerHandler('link.send', 'logout', function(activity, credentials) {
-    clearStorage(activity, credentials);
-  });
-
-  // Get a list of recipient names for a specific shareType.  Only returns
-  // the names to avoid leaking full profile information for all our contacts
-  // (some of whom may have profiles private to the rest of the world.)
-  // A super-anal service who thinks even this is leaking too much is free to
-  // return an empty list.
-  // This means the onus then falls back on us to match these names back up
-  // with our PoCo records so we can extract the userid.
-  navigator.mozActivities.services.registerHandler('link.send', 'getShareTypeRecipients', function(activity, credentials) {
-    var type;
-    var args = activity.data;
-    var ckey = api.key+'.email';
-    var strval = window.localStorage.getItem(ckey);
-    var byEmail = JSON.parse(strval);
-    // convert back to a simple array of names to use for auto-complete.
-    var toFormat = [];
-    var result = [];
-    for (var email in byEmail) {
-      var poco = byEmail[email];
-      toFormat.push([poco.displayName, email])
-    }
-    // Now format the addresses into something we can later parse.
-    navigator.mozActivities.services.formatEmailAddresses.call(toFormat, function(result) {
-      if ('error' in result) {
-        activity.postException(result.error);
-      } else {
-        // result.result is already in the format we need.
-        activity.postResult(result.result);
-      }
+    ui.showStatus('statusSharing');
+    servicePanel.accountPanel.getShareData(function(data) {
+      activity.data = data;
+      api.send(activity, function(result) {
+        ui.showStatus('statusShared');
+        activity.postResult(result);
+      }, function(errob) {
+        ui.showStatus('statusError');
+        activity.postException(errob);
+      });
     });
   });
 
-  navigator.mozActivities.services.registerHandler('link.send', 'resolveRecipients', function(activity, credentials) {
-    api.resolveRecipients(activity, credentials);
-  });
+  // The 'init' handler is where we setup our UI.
+  navigator.mozActivities.services.registerHandler('link.send', 'init', function(activity, credentials) {
+    $('#shareui').removeClass('hidden');
 
-  navigator.mozActivities.services.registerHandler('link.send', 'getParameters', function(activity, credentials) {
-    // This is currently slightly confused - it is both link.send parameters and auth parameters.
-    activity.postResult(parameters);
+    var service = {
+      parameters: parameters,
+      user: common.getLogin(domain).user,
+      app: {origin: appOrigin},
+      resolveRecipients: function(args, callback, errback) {
+        api.resolveRecipients(args, callback, errback);
+        },
+      getLogin: function(callback, errback) {
+          var result = common.getLogin(domain);
+          callback(result);
+      },
+      getShareTypeRecipients: function(data, callback, errback) {
+        api.getShareTypeRecipients(data, callback, errback);
+      },
+      authenticationChanged: function(data, callback, errback) {
+        if (!data) {
+          // logout request
+          api.clearStorage();
+          callback();
+        } else {
+          api.getProfile(data.credentials, function(user) {
+            callback();
+          });
+        }
+      }
+    };
+
+    // Get the contructor function for the panel.
+    var fragment = document.createDocumentFragment();
+    servicePanel = new ServicePanel({
+        activity: activity,
+        owaservice: service
+    }, fragment);
+    $('#panel').append(fragment);
+
+    activity.postResult(); // all done.
   });
 
   // Tell OWA we are now ready to be invoked.

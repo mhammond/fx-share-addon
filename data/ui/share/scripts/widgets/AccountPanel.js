@@ -26,11 +26,11 @@
 "use strict";
 
 define([ 'blade/object', 'blade/Widget', 'jquery', 'text!./AccountPanel.html',
-         'TextCounter', 'module', 'dispatch', 'mediator',
+         'TextCounter', 'module', 'dispatch',
          'AutoComplete', 'blade/fn', './jigFuncs', 'Select',
          'jquery.textOverflow'],
 function (object,         Widget,         $,        template,
-          TextCounter,   module,   dispatch,   mediator,
+          TextCounter,   module,   dispatch,
           AutoComplete,   fn,         jigFuncs,     Select) {
 
   var className = module.id.replace(/\//g, '-');
@@ -89,14 +89,14 @@ function (object,         Widget,         $,        template,
           $('[name="picture_base64"]', this.node).val(jigFuncs.rawBase64(img.data));
           $('img.thumb', this.node).attr('src', img.url);
         });
-        mediator.on('base64Preview', this.base64PreviewSub);
+        //mediator.on('base64Preview', this.base64PreviewSub);
 
         //Listen for options changes and update the account.
         this.activityChangedSub = dispatch.sub('activityChanged', this.activityChanged.bind(this));
       },
 
       destroy: function () {
-        mediator.removeListener('base64Preview', this.base64PreviewSub);
+        //mediator.removeListener('base64Preview', this.base64PreviewSub);
         dispatch.unsub(this.sendCompleteSub);
         dispatch.unsub(this.activityChangedSub);
         if (this.select) {
@@ -216,13 +216,14 @@ function (object,         Widget,         $,        template,
         // we're resizing the page description via css, but we also need to
         // notify the panel to resize, otherwise part of our panel will get
         // hidden.
+/***
         $('textarea.pageDescription', this.node).bind('focus', function (e) {
           mediator.sizeToContent();
         });
         $('textarea.pageDescription', this.node).bind('blur', function (e) {
           mediator.sizeToContent();
         });
-
+***/
       },
 
       renderData: function() {
@@ -328,7 +329,7 @@ function (object,         Widget,         $,        template,
         var shareType = this.parameters.shareTypes[0].type;
         if (this.select)
           shareType = this.getShareType(this.select.val()).type;
-        this.owaservice.call('resolveRecipients',
+        this.owaservice.resolveRecipients(
           {shareType: shareType, names: toText},
           function(results) {
             var good = [], bad = [];
@@ -464,13 +465,10 @@ function (object,         Widget,         $,        template,
         //is enabled.
         this.resetError();
 
-        mediator.sizeToContent();
+//        mediator.sizeToContent();
       },
 
-      onSubmit: function (evt) {
-        //Do not submit the form as-is.
-        evt.preventDefault();
-
+      getShareData: function(callback) {
         //Make sure all form elements are trimmed and username exists.
         //Then collect the form values into the data object.
         var sendData = this.getFormData();
@@ -502,15 +500,27 @@ function (object,         Widget,         $,        template,
               dump("unexpected errors resolving recipients: " + bad + "\n");
             }
             sendData.to = good;
-            //Notify the page of a send.
-            dispatch.pub('sendMessage', sendData);
+            callback(sendData);
           }
         );
       },
 
+      onSubmit: function (evt) {
+        //Do not submit the form as-is.
+        evt.preventDefault();
+        this.getShareData(function(data) {
+          // nothing to do with the data in this world (ie, onSubmit should
+          // die)
+        });
+      },
+
       onRemove: function (evt) {
         // request a logout.
-        dispatch.pub('logout', this.owaservice.app.origin);
+        this.owaservice.authenticationChanged(null, function() {
+          dispatch.pub('serviceChanged', this.owaservice.app.origin);
+        }.bind(this), function() {
+          dispatch.pub('serviceChanged', this.owaservice.app.origin);
+        }.bind(this));
       }
     };
   });

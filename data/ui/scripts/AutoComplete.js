@@ -62,7 +62,7 @@ function ($,        object,         fn,         module,   dispatch,
       this.currentShareType = shareType;
 
       // ask the service for its contacts.
-      this.owasvc.call("getShareTypeRecipients",
+      this.owasvc.getShareTypeRecipients(
           {shareType: shareType, force: !!forceRefresh},
           function(recips) {
             this._attachAutoComplete(recips);

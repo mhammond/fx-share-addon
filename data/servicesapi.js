@@ -57,5 +57,14 @@ unsafeWindow.navigator.wrappedJSObject.mozActivities.services.oauth = {
       data: data,
       result: "owa.service.oauth.call.result."+callid
     });
+  },
+  login: function(origin, authParameters, callback) {
+    callid++;
+    let resultEvent = "owa.service.oauth.login.result."+callid;
+    self.port.once(resultEvent, function(result) {
+      callback(result);
+    });
+    let args = {app: origin, auth: authParameters, result: resultEvent};
+    self.port.emit("owa.service.oauth.login", args )
   }
 };

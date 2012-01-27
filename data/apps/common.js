@@ -34,7 +34,7 @@ function (require) {
   };
   common.prototype = {
 
-    getLogin: function(domain, activity, credentials) {
+    getLogin: function(domain) {
       var key = "ff-share-" + domain;
       var strval = window.localStorage.getItem(key);
       var result = {};
@@ -58,15 +58,16 @@ function (require) {
         // some error, logout
         activity.postException({code: "get.login", message: e.toString(), data: { key: key, value: strval}});
         window.localStorage.removeItem(key);
-        return;
       }
-      activity.postResult(result);
+      return result;
     },
 
-    logout: function(domain, activity, credentials) {
+    logout: function(domain, cb) {
       var key = "ff-share-" + domain;
       window.localStorage.removeItem(key);
-      activity.postResult({status: "ok"});
+      if (cb) {
+        cb({status: "ok"});
+      }
     }
   }
 
