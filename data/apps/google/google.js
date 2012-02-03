@@ -291,23 +291,13 @@ function (require,  common,          ui, ServicePanel,
     }
   };
 
-  // Bind the OWA messages
-  navigator.mozActivities.services.registerHandler('link.send', 'confirm', function(activity, credentials) {
-    ui.showStatus('statusSharing');
-    servicePanel.accountPanel.getShareData(function(data) {
-      activity.data = data;
-      api.send(activity, function(result) {
-        ui.showStatus('statusShared');
-        activity.postResult(result);
-      }, function(errob) {
-        ui.showStatus('statusError');
-        activity.postException(errob);
-      });
-    });
+  $(function() {
+    dump("registering\n");
+    navigator.registerIntentHandler('share', '*/*', location.href, 'inline');
+    dump("just registered my intent handler\n");
   });
 
-  // The 'init' handler is where we setup our UI.
-  navigator.mozActivities.services.registerHandler('link.send', 'init', function(activity, credentials) {
+  window.onintent = function(evt) {
     $('#shareui').removeClass('hidden');
 
     var service = {
@@ -334,20 +324,27 @@ function (require,  common,          ui, ServicePanel,
             callback();
           });
         }
+      },
+      submit: function(data, callback, errback) {
+        ui.showStatus('statusSharing');
+        api.send({data: data}, function(result) {
+            ui.showStatus('statusShared');
+            if (callback) callback();
+          }, function(errob) {
+            ui.showStatus('statusError');
+            if (errback) errback();
+          }
+        );
       }
     };
 
     // Get the contructor function for the panel.
     var fragment = document.createDocumentFragment();
     servicePanel = new ServicePanel({
-        activity: activity,
+        activity: {data: evt.data},
         owaservice: service
     }, fragment);
+    $('#panel').empty();
     $('#panel').append(fragment);
-
-    activity.postResult(); // all done.
-  });
-
-  // Tell OWA we are now ready to be invoked.
-  navigator.mozActivities.services.ready();
+  }
 });

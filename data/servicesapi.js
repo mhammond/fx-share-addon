@@ -1,5 +1,13 @@
 
 var callid = 0;
+
+if (!unsafeWindow.navigator.wrappedJSObject.mozActivities) {
+  unsafeWindow.navigator.wrappedJSObject.mozActivities = {};
+}
+if (!unsafeWindow.navigator.wrappedJSObject.mozActivities.services) {
+  unsafeWindow.navigator.wrappedJSObject.mozActivities.services = {};
+}
+
 unsafeWindow.navigator.wrappedJSObject.mozActivities.services.sendEmail = {
   call: function(svc, data, callback) {
     callid++;

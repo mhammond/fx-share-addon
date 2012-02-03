@@ -509,9 +509,8 @@ function (object,         Widget,         $,        template,
         //Do not submit the form as-is.
         evt.preventDefault();
         this.getShareData(function(data) {
-          // nothing to do with the data in this world (ie, onSubmit should
-          // die)
-        });
+          this.owaservice.submit(data);
+        }.bind(this));
       },
 
       onRemove: function (evt) {
